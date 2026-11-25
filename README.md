@@ -17,6 +17,11 @@ is distributed here: the patcher works with the copy already on your phone.
 > The developers of this patch are not responsible for any action taken against your account, including
 > suspension or a ban, or for any other consequence of using it.
 
+The patch only changes what your phone shows: it sends nothing to the game's servers and never changes what the
+game sends. Its own network use is the translation download and the [reports](#reports), both to the patch's own
+hosts. The (EN) copy is still the full game, though, and the game's own analytics may report its package name
+(`….en`) and signature, which differ from the official app's.
+
 ## Requirements
 
 - An Android phone with a 64-bit (arm64) processor, Android 8 or newer.
