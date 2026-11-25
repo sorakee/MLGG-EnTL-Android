@@ -41,6 +41,12 @@ class Signer(private val context: Context) {
 
     fun certificate(): X509Certificate = load().second
 
+    /** The key's certificate (DER), or null if there is no key yet (doesn't make one). */
+    fun certificateOrNull(): ByteArray? = if (file.exists()) load().second.encoded else null
+
+    /** Short fingerprint for the screen: first 8 bytes of the certificate's SHA-256, "1A:2B:…". */
+    fun fingerprint(): String? = certificateOrNull()?.let { fingerprintOf(it) }
+
     private fun create() {
         val gen = KeyPairGenerator.getInstance("RSA")
         gen.initialize(2048, SecureRandom())
@@ -86,6 +92,9 @@ class Signer(private val context: Context) {
 
     companion object {
         private const val ALIAS = "ggxen"
+
+        fun fingerprintOf(cert: ByteArray): String =
+            java.security.MessageDigest.getInstance("SHA-256").digest(cert).take(8).joinToString(":") { "%02X".format(it) }
 
         /** A minimal X.509 v3 certificate (DER), signed with SHA256withRSA by its own key. */
         fun selfSigned(publicKeyInfo: ByteArray, key: PrivateKey): X509Certificate {

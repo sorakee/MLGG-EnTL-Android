@@ -106,6 +106,20 @@ class MainActivity : Activity() {
     private fun isPatched(info: PackageInfo) =
         info.applicationInfo?.nativeLibraryDir?.let { File(it, "libggxen.so").exists() } == true
 
+    /** The signing certificates (DER) of an installed app. */
+    private fun signers(name: String): List<ByteArray> = try {
+        if (Build.VERSION.SDK_INT >= 28) {
+            val info = packageManager.getPackageInfo(name, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo
+            (if (info?.hasMultipleSigners() == true) info.apkContentsSigners else info?.signingCertificateHistory)
+                ?.map { it.toByteArray() } ?: emptyList()
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(name, PackageManager.GET_SIGNATURES).signatures?.map { it.toByteArray() } ?: emptyList()
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
     private fun render() {
         val keep = if (::status.isInitialized) status.text else ""
         root.removeAllViews()
@@ -114,9 +128,12 @@ class MainActivity : Activity() {
             "official one as its own app, \"… (EN)\". Keep the official app installed: the DMM GAMES STORE updates it, " +
             "and you tap Update here afterwards. Play the (EN) one."))
 
+        val myCert = signer.certificateOrNull()
         for (game in Game.values()) {
             val official = packageInfo(game.official)
             val patched = packageInfo(game.patched)
+            // Does the installed English copy carry this patcher's key? Only then can a new build install over it.
+            val keyMatches = patched != null && myCert != null && signers(game.patched).any { it.contentEquals(myCert) }
             root.addView(text(game.title, 18f, true))
             val lines = mutableListOf<String>()
             lines += when {
@@ -124,14 +141,30 @@ class MainActivity : Activity() {
                 isPatched(official) -> "Official app: this is an old-style patched copy, not the official app. Uninstall it and install the official app from the DMM GAMES STORE."
                 else -> "Official app: ${official.versionName}"
             }
-            lines += if (patched == null) "English version: not installed" else "English version: ${patched.versionName}"
+            lines += when {
+                patched == null -> "English version: not installed"
+                keyMatches -> "English version: ${patched.versionName} · signed with your key ✓"
+                else -> "English version: ${patched.versionName} · signed with a DIFFERENT key ✗\n" +
+                    "Import the key it was made with, or uninstall it first (its downloaded data goes with it)."
+            }
             root.addView(text(lines.joinToString("\n")))
             if (official != null && !isPatched(official)) {
                 val upToDate = patched != null && patched.longVersion() == official.longVersion()
                 val (label, working) = when {
+                    patched != null && !keyMatches -> "Different key: uninstall the English version first" to ""
                     patched == null -> "Install the English version" to "Installing…"
                     upToDate -> "Rebuild (apply changed options)" to "Rebuilding…"
                     else -> "Update the English version to ${official.versionName}" to "Updating…"
+                }
+                if (working.isEmpty()) {
+                    root.addView(Button(this).apply {
+                        text = label
+                        isEnabled = !busy
+                        setOnClickListener {
+                            startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:${game.patched}")))
+                        }
+                    })
+                    continue
                 }
                 root.addView(Button(this).apply {
                     text = if (busyGame == game) busyLabel else label
@@ -153,6 +186,8 @@ class MainActivity : Activity() {
         root.addView(text("Your signing key", 18f, true))
         root.addView(text("Updates install over the English version only when they are signed with the same key. " +
             "Export it somewhere safe; if you reinstall this patcher or change phones, import it again.", 13f))
+        root.addView(text(signer.fingerprint()?.let { "Current key: $it" }
+            ?: "No key yet: one is made when you first install the English version.", 15f, true))
         root.addView(Button(this).apply { text = "Export key"; setOnClickListener { exportKey() } })
         root.addView(Button(this).apply { text = "Import key"; setOnClickListener { importKey() } })
 
@@ -232,8 +267,15 @@ class MainActivity : Activity() {
         if (resultCode != RESULT_OK) return
         try {
             when (requestCode) {
-                REQ_EXPORT -> contentResolver.openOutputStream(uri)?.use { signer.export(it) }.also { setStatus("Key exported.") }
-                REQ_IMPORT -> contentResolver.openInputStream(uri)?.use { signer.import(it) }.also { setStatus("Key imported.") }
+                REQ_EXPORT -> {
+                    contentResolver.openOutputStream(uri)?.use { signer.export(it) }
+                    setStatus("Key ${signer.fingerprint()} exported. Keep the file safe.")
+                }
+                REQ_IMPORT -> {
+                    contentResolver.openInputStream(uri)?.use { signer.import(it) }
+                    render()
+                    setStatus("Key ${signer.fingerprint()} imported.")
+                }
             }
         } catch (e: Exception) {
             setStatus("Key file: ${e.message}")
