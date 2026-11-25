@@ -1,0 +1,25 @@
+# Never in the repository: game files, player data, signing keys, downloaded tools
+apk/
+backup/
+keys/
+tools/
+*.jks
+*.p12
+*.keystore
+keystore.properties
+
+# Python / Node / Gradle
+.venv/
+__pycache__/
+agent/node_modules/
+agent/dist/
+patcher/.gradle/
+patcher/build/
+patcher/app/build/
+patcher/local.properties
+patcher/app/src/main/assets/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
