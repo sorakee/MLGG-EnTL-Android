@@ -14,8 +14,8 @@ android {
         applicationId = "ggxen.patcher"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
     }
 
     // Release signing: GGXEN_SIGNING names a properties file (storeFile, storePassword, keyAlias, keyPassword)

@@ -5,12 +5,15 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
@@ -26,7 +29,7 @@ class MainActivity : Activity() {
     private lateinit var patcher: Patcher
     private lateinit var root: LinearLayout
     private lateinit var status: TextView
-    private var busy = false
+    private val busy get() = busyGame != null
 
     private val prefs by lazy { getSharedPreferences("options", MODE_PRIVATE) }
     private val boxes = linkedMapOf<String, CheckBox>()
@@ -53,7 +56,27 @@ class MainActivity : Activity() {
                 insets
             }
         })
-        Installer.listener = { ok, msg -> runOnUiThread { busy = false; setStatus(msg); render() } }
+        matchSystemBars()
+        Installer.listener = { _, msg -> runOnUiThread { idle(msg) } }
+    }
+
+    /** Dark status/navigation bar icons on the light theme, light ones on the dark theme (values-night). */
+    private fun matchSystemBars() {
+        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        if (Build.VERSION.SDK_INT >= 30) {
+            val light = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            window.insetsController?.setSystemBarsAppearance(if (night) 0 else light, light)
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = if (night) 0 else
+                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or (if (Build.VERSION.SDK_INT >= 27) View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+        }
+    }
+
+    private fun idle(message: String) {
+        busyGame = null
+        setStatus(message)
+        render()
     }
 
     override fun onResume() {
@@ -105,15 +128,15 @@ class MainActivity : Activity() {
             root.addView(text(lines.joinToString("\n")))
             if (official != null && !isPatched(official)) {
                 val upToDate = patched != null && patched.longVersion() == official.longVersion()
-                val label = when {
-                    patched == null -> "Install the English version"
-                    upToDate -> "Rebuild (apply changed options)"
-                    else -> "Update the English version to ${official.versionName}"
+                val (label, working) = when {
+                    patched == null -> "Install the English version" to "Installing…"
+                    upToDate -> "Rebuild (apply changed options)" to "Rebuilding…"
+                    else -> "Update the English version to ${official.versionName}" to "Updating…"
                 }
                 root.addView(Button(this).apply {
-                    text = label
+                    text = if (busyGame == game) busyLabel else label
                     isEnabled = !busy
-                    setOnClickListener { start(game) }
+                    setOnClickListener { start(game, working) }
                 })
             }
         }
@@ -159,7 +182,7 @@ class MainActivity : Activity() {
         fitUiLabels = prefs.getBoolean("fitUiLabels", true),
     )
 
-    private fun start(game: Game) {
+    private fun start(game: Game, working: String) {
         if (Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
             AlertDialog.Builder(this)
                 .setMessage("Allow this app to install apps, then come back and tap the button again.")
@@ -170,7 +193,8 @@ class MainActivity : Activity() {
                 .show()
             return
         }
-        busy = true
+        busyGame = game
+        busyLabel = working
         render()
         val options = options()
         worker.execute {
@@ -179,9 +203,9 @@ class MainActivity : Activity() {
                 runOnUiThread { setStatus("Installing… confirm on the next screen.") }
                 Installer.install(this, apk, game.patched)
             } catch (e: Patcher.PatchError) {
-                runOnUiThread { busy = false; setStatus(e.message ?: "Failed."); render() }
+                runOnUiThread { idle(e.message ?: "Failed.") }
             } catch (e: Throwable) {
-                runOnUiThread { busy = false; setStatus("Failed: ${e.javaClass.simpleName}: ${e.message}"); render() }
+                runOnUiThread { idle("Failed: ${e.javaClass.simpleName}: ${e.message}") }
             }
         }
     }
@@ -219,5 +243,10 @@ class MainActivity : Activity() {
     companion object {
         private const val REQ_EXPORT = 1
         private const val REQ_IMPORT = 2
+
+        /** The game being built and installed, and the button text meanwhile ("Rebuilding…"); null when idle.
+         *  Kept here, not on the screen, so switching dark mode mid-build (which recreates the screen) keeps it. */
+        private var busyGame: Game? = null
+        private var busyLabel = ""
     }
 }
