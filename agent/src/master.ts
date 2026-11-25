@@ -17,10 +17,11 @@ const CHECK_EVERY_MS = 2000;
 const STRING_LENGTH = 16, STRING_CHARS = 20;  // Il2CppString: klass, monitor, int32 length, UTF-16 chars
 const ARRAY_LENGTH = 24, ARRAY_DATA = 32;     // Il2CppArray: klass, monitor, bounds, max_length, data
 
-// Resolved on first use: in script mode the agent loads before libil2cpp.so does.
+// Resolved on first use: in script mode the agent loads before libil2cpp.so does. Through the bridge's module:
+// looking a module up by name on the main thread can deadlock with a library load in progress (see index.ts).
 let wbarrierFn: NativeFunction<void, [NativePointerValue, NativePointerValue, NativePointerValue]> | null = null;
 function wbarrier(obj: NativePointer, at: NativePointer, value: NativePointer): void {
-    wbarrierFn ??= new NativeFunction(Process.getModuleByName("libil2cpp.so").getExportByName("il2cpp_gc_wbarrier_set_field"),
+    wbarrierFn ??= new NativeFunction(Il2Cpp.module.getExportByName("il2cpp_gc_wbarrier_set_field"),
         "void", ["pointer", "pointer", "pointer"]);
     wbarrierFn(obj, at, value);
 }

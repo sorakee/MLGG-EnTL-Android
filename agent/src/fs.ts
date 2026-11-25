@@ -65,6 +65,20 @@ export function statFile(path: string): { size: number, mtime: number } | null {
 
 export const exists = (path: string) => statFile(path) !== null;
 
+/** The app's native library folder, where the gadget (libggxen.so) is. While the gadget starts, it isn't in
+ *  Frida's module list yet: then from /proc/self/maps. Call it at startup only, not from the game's main thread
+ *  (a module lookup there can deadlock with a library load on another thread: see index.ts). */
+export function libDir(): string {
+    const dirOf = (path: string) => path.substring(0, path.lastIndexOf("/"));
+    const gadget = Process.findModuleByName("libggxen.so");
+    if (gadget !== null) return dirOf(gadget.path);
+    for (const line of File.readAllText("/proc/self/maps").split("\n")) {
+        const i = line.indexOf("/");
+        if (i >= 0 && line.endsWith("/libggxen.so")) return dirOf(line.substring(i));
+    }
+    throw new Error("can't find libggxen.so");
+}
+
 /** The first bytes of a file as Latin-1 text (pack headers are ASCII). */
 export function readHead(path: string, n: number): string {
     const f = new File(path, "rb");

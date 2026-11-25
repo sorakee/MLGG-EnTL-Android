@@ -14,7 +14,8 @@ import java.security.MessageDigest
  *  - package renamed to <official>.en, provider authorities with it, label "<title> (EN)"; the DMM login
  *    callback scheme stays as it is (tested: login works);
  *  - lib/arm64-v8a: libmain.so swapped for one that also loads libggxen.so (prebuilt per Unity version, keyed by
- *    the original's SHA-256), plus libggxen.so (Frida Gadget), its config, the agent and the baked settings;
+ *    the original's SHA-256), plus libggxen.so (Frida Gadget), its config, the loader, the agent and the baked
+ *    settings;
  *  - old signature dropped, then signed with this player's key (Signer).
  */
 class Patcher(private val context: Context, private val signer: Signer) {
@@ -70,6 +71,7 @@ class Patcher(private val context: Context, private val signer: Signer) {
             context.assets.open("libggxen.so").use { input -> gadget.outputStream().use { input.copyTo(it) } }
             replace(module, FileInputSource(gadget, LIB + "libggxen.so"), libmain)
             replace(module, ByteInputSource(CONFIG.toByteArray(), LIB + "libggxen.config.so"), libmain)
+            replace(module, ByteInputSource(context.assets.open("loader.js").use { it.readBytes() }, LIB + "libggxen-loader.so"), libmain)
             replace(module, ByteInputSource(context.assets.open("agent.js").use { it.readBytes() }, LIB + "libggxen-agent.so"), libmain)
             replace(module, ByteInputSource(options.toJson(game).toByteArray(), LIB + "libggxen-settings.so"), libmain)
 
@@ -104,8 +106,9 @@ class Patcher(private val context: Context, private val signer: Signer) {
 
     companion object {
         const val LIB = "lib/arm64-v8a/"
-        /** Gadget config: run the agent next to it (no listening port), V8 engine. */
-        const val CONFIG = """{"interaction":{"type":"script","path":"./libggxen-agent.so","on_change":"ignore"},"runtime":"v8","teardown":"minimal"}"""
+        /** Gadget config: run the loader next to it (no listening port), V8 engine. The loader starts the
+         *  built-in agent (libggxen-agent.so) or a newer signed one the agent downloaded. */
+        const val CONFIG = """{"interaction":{"type":"script","path":"./libggxen-loader.so","on_change":"ignore"},"runtime":"v8","teardown":"minimal"}"""
 
         fun sha256(input: InputStream): String {
             val md = MessageDigest.getInstance("SHA-256")

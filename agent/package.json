@@ -2,11 +2,12 @@
   "name": "ggxen-android-agent",
   "private": true,
   "version": "0.0.1",
-  "description": "GGX EN Patch for Android: Frida Gadget agent (proof of concept)",
+  "description": "GGX EN Patch for Android: Frida Gadget loader and agent",
   "scripts": {
-    "build": "frida-compile src/index.ts -o dist/agent.js -c"
+    "build": "frida-compile src/index.ts -o dist/agent.js -c && frida-compile loader/index.ts -o dist/loader.js -c"
   },
   "devDependencies": {
+    "@noble/ed25519": "3.2.0",
     "@types/frida-gum": "19.0.1",
     "fflate": "0.8.2",
     "frida-compile": "19.1.0",

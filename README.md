@@ -18,8 +18,8 @@ is distributed here: the patcher works with the copy already on your phone.
 > suspension or a ban, or for any other consequence of using it.
 
 The patch only changes what your phone shows: it sends nothing to the game's servers and never changes what the
-game sends. Its own network use is the translation download and the [reports](#reports), both to the patch's own
-hosts. The (EN) copy is still the full game, though, and the game's own analytics may report its package name
+game sends. Its own network use is the translation and patch download and the [reports](#reports), all to the
+patch's own hosts. The (EN) copy is still the full game, though, and the game's own analytics may report its package name
 (`….en`) and signature, which differ from the official app's.
 
 ## Requirements
@@ -50,6 +50,12 @@ itself brings.
 Translation updates need nothing from you: the English copy downloads new translations on every launch, the same
 weekly updates the PC patch gets.
 
+Fixes to the patch itself (patcher 0.2.0 and later) arrive the same way: when the translators publish a newer
+version of the in-game part, the English copy downloads it and uses it from the next launch. It runs only if it
+carries the translators' signature, checked on every start; otherwise, or if it fails to start three times in a
+row, the English copy uses the version built into it. Some fixes still need a new patcher (the English copy's
+log says so); then install the new patcher and tap **Rebuild**.
+
 ## Options
 
 Set in the patcher and built into the English copy; after changing one, tap **Rebuild**.
@@ -60,6 +66,7 @@ Set in the patcher and built into the English copy; after changing one, tap **Re
 | Turn off the mosaic (X only) | off | Changes only what your phone draws. |
 | Let voice lines finish when you advance | off | In story scenes, a voice line isn't cut off when you tap on. |
 | Shrink long English labels to fit | on | English runs longer than Japanese. |
+| Download fixes to the patch itself | on | See [Game updates](#game-updates). Off: only a new patcher and **Rebuild** update it. |
 | Share links to story scenes the translators lack | on | See [Reports](#reports). |
 | Send untranslated menu text to the translators | on | See [Reports](#reports). |
 
@@ -102,19 +109,25 @@ The patcher reads the official app's APK (any app can read an installed app's AP
 `<official package>.en` (manifest and resource table) and its label, and adds:
 
 - `libggxen.so`: [Frida Gadget](https://frida.re), loaded at startup (it is added to `libmain.so`'s dependencies);
+- `libggxen-loader.so`: the loader ([`agent/loader`](agent/loader)): it starts the built-in agent, or a newer one the
+  agent downloaded if its Ed25519 signature matches the key built into the loader and the file matches the signed
+  SHA-256 (checked on every start; kept in the app's internal storage, `files/ggxen-agent/`);
 - `libggxen-agent.so`: the agent, a TypeScript port of the PC plugin
   (see [`agent/src`](agent/src)) built on [frida-il2cpp-bridge](https://github.com/vfsfitvnm/frida-il2cpp-bridge);
-- `libggxen.config.so` and `libggxen-settings.so`: the gadget's config (run the agent, no network port) and your
+- `libggxen.config.so` and `libggxen-settings.so`: the gadget's config (run the loader, no network port) and your
   options.
 
 It then signs the result with your key and hands it to Android's installer. In the game, the agent matches text by
 its exact Japanese, as the PC plugin does: story lines as the scenario plays, the game's data tables a few seconds
 after they load, and menu labels as they are drawn. Translation packs come from the same host as the PC patch and
-are kept in `Android/data/<package>/files/ggxen/translations/`.
+are kept in `Android/data/<package>/files/ggxen/translations/`. Agent updates are listed in
+`android/manifest-android.json` on that host and signed with `agent/publish.mjs`.
 
 ## Building from source
 
-- **Agent:** `cd agent && npm ci && npm run build` (→ `agent/dist/agent.js`).
+- **Agent and loader:** `cd agent && npm ci && npm run build` (→ `agent/dist/agent.js`, `agent/dist/loader.js`). The
+  loader trusts the public key in `agent/loader/key.ts`; for your own builds, make a key with
+  `node publish.mjs keygen` (it rewrites `key.ts`).
 - **Patcher assets:** put `frida-gadget-17.26.2-android-arm64.so` (from the
   [Frida release](https://github.com/frida/frida/releases/tag/17.26.2), decompressed) and at least one official
   `apk/<name>/base.apk` (for `libmain.so`) in place, then

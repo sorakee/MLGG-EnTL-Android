@@ -17,13 +17,17 @@ export function openLogFile(path: string): void {
 
 function out(priority: number, level: string, message: string): void {
     write(priority, tag, Memory.allocUtf8String(message));
-    if (file !== null) {
-        try {
-            file.write(`${new Date().toISOString()} [${level}] ${message}\n`);
-            file.flush();
-        } catch {
-            file = null;
-        }
+    toFile(level, message);
+}
+
+/** log.txt only (for lines already in logcat, e.g. the loader's). */
+export function toFile(level: string, message: string): void {
+    if (file === null) return;
+    try {
+        file.write(`${new Date().toISOString()} [${level}] ${message}\n`);
+        file.flush();
+    } catch {
+        file = null;
     }
 }
 

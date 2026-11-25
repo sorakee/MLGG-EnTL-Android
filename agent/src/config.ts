@@ -8,7 +8,7 @@ export interface Settings {
     Text: { LineBreaks: LineBreakMode, FitUiLabels: boolean };
     Debug: { MarkUntranslated: boolean };
     Report: { LogUntranslatedUi: boolean, ShareScenes: boolean, SendUntranslatedUi: boolean, ReportUrl: string };
-    Update: { AutoUpdate: boolean, IncludeR18: boolean, PackUrl: string };
+    Update: { AutoUpdate: boolean, IncludeR18: boolean, UpdatePatch: boolean, PackUrl: string };
     QoL: { Demosaic: boolean, UninterruptedVoice: boolean };
 }
 
@@ -22,6 +22,7 @@ const HELP = {
     "Report.ReportUrl": "Where reports go. Empty: the patch's own report service.",
     "Update.AutoUpdate": "On launch, download new translation packs (from PackUrl only; nothing about you is sent).",
     "Update.IncludeR18": "Also download the adult scenes' text (the X app only).",
+    "Update.UpdatePatch": "On launch, also download fixes to the patch itself (signed by the translators; checked before every start). Needs AutoUpdate.",
     "Update.PackUrl": "Where the translation packs are published. Empty: the patch's own address.",
     "QoL.Demosaic": "Turn off the mosaic filter in scenes. Only changes what is drawn on this phone.",
     "QoL.UninterruptedVoice": "In story scenes, let a voice line finish when you advance instead of cutting it off.",
@@ -32,7 +33,7 @@ export function defaults(isX: boolean): Settings {
         Text: { LineBreaks: "Keep", FitUiLabels: true },
         Debug: { MarkUntranslated: false },
         Report: { LogUntranslatedUi: true, ShareScenes: true, SendUntranslatedUi: true, ReportUrl: "" },
-        Update: { AutoUpdate: true, IncludeR18: isX, PackUrl: "" },
+        Update: { AutoUpdate: true, IncludeR18: isX, UpdatePatch: true, PackUrl: "" },
         QoL: { Demosaic: false, UninterruptedVoice: false },
     };
 }

@@ -3,7 +3,7 @@
     android/.venv/Scripts/python -I android/make_patcher_assets.py
 
   libggxen.so            Frida Gadget (android/tools/frida-gadget-*-android-arm64.so, newest)
-  agent.js               android/agent/dist/agent.js (run `npm run build` in android/agent first)
+  agent.js, loader.js    android/agent/dist/ (run `npm run build` in android/agent first)
   libmain/<sha256>.so    for every android/apk/*/base.apk: its libmain.so with libggxen.so added to DT_NEEDED,
                          named by the SHA-256 of the original (the patcher looks it up that way). libmain.so
                          only changes with the Unity version; a new one needs a new patcher release.
@@ -32,8 +32,10 @@ def main():
     gadget = sorted((HERE / 'tools').glob('frida-gadget-*-android-arm64.so'))[-1]
     shutil.copyfile(gadget, ASSETS / 'libggxen.so')
     agent = HERE / 'agent/dist/agent.js'
+    loader = HERE / 'agent/dist/loader.js'
     shutil.copyfile(agent, ASSETS / 'agent.js')
-    print(f'gadget {gadget.name}, agent {agent.stat().st_size:,} bytes')
+    shutil.copyfile(loader, ASSETS / 'loader.js')
+    print(f'gadget {gadget.name}, agent {agent.stat().st_size:,} bytes, loader {loader.stat().st_size:,} bytes')
     seen = {}
     for apk in sorted((HERE / 'apk').glob('*/base.apk')):
         data = zipfile.ZipFile(apk).read('lib/arm64-v8a/libmain.so')

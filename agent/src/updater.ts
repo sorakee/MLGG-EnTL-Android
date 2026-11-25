@@ -2,10 +2,11 @@
 // date: the base pack when the manifest names another one, then the update packs not here yet; updates the
 // manifest no longer lists are deleted. Files are checked against the manifest's SHA-256 (of the uncompressed
 // JSON; a .gz url is gunzipped) and written under a temporary name first; the store reloads them by itself.
-// A channel whose local base is a dev pack is left alone. Only the manifest and pack URLs are contacted.
+// A channel whose local base is a dev pack is left alone. Then the patch's own code (updateAgent). Only the
+// manifest, pack and agent URLs (all under PackUrl) are contacted.
 // Requests go through the game's UnityWebRequest, stepped from the main-thread tick (a generator per job).
 import { gunzipSync } from "fflate/browser";  // the Node build needs Node's module API
-import { ctx, VERSION } from "./ctx.js";
+import { ctx, newer, VERSION } from "./ctx.js";
 import * as fs from "./fs.js";
 import * as http from "./http.js";
 import type { Request, Response } from "./http.js";
@@ -15,11 +16,11 @@ import { PackInfo } from "./store.js";
 type Job = Generator<Request, void, Response>;
 
 let job: Job | null = null;
-let noticeShown = false;
 
-/** Queues the update (http.ts sends it from the first frame on). */
-export function start(manifestUrls: string[]): void {
-    job = run([...new Set(manifestUrls.map(u => u.trim()).filter(u => u.length > 0))]);
+/** Queues the update (http.ts sends it from the first frame on): the channels' packs, then, with agentUrl,
+ *  the patch's own code. */
+export function start(manifestUrls: string[], agentUrl: string | null): void {
+    job = run([...new Set(manifestUrls.map(u => u.trim()).filter(u => u.length > 0))], agentUrl);
     advance(undefined as any);
 }
 
@@ -49,12 +50,19 @@ function advance(response: Response): void {
     http.request(next.value as Request, advance);
 }
 
-function* run(urls: string[]): Job {
+function* run(urls: string[], agentUrl: string | null): Job {
     for (const url of urls) {
         try {
             yield* update(url);
         } catch (e) {
             log.warn(`Translation update from ${url} failed: ${e}`);
+        }
+    }
+    if (agentUrl !== null) {
+        try {
+            yield* updateAgent(agentUrl);
+        } catch (e) {
+            log.warn(`Patch update from ${agentUrl} failed: ${e}`);
         }
     }
 }
@@ -97,11 +105,43 @@ function* update(url: string): Generator<Request, void, Response> {
     log.info(changed.length === 0
         ? `Translations (${channel}): up to date (base ${baseId}).`
         : `Translations (${channel}): installed ${changed.join(", ")}. Menus and game data text fully update after a restart.`);
-    const android = root.android ?? null;  // future: {"version": "...", "url": "..."} for this patch
-    if (!noticeShown && android?.version && newer(android.version, VERSION)) {
-        noticeShown = true;
-        log.warn(`GGX EN Patch for Android ${android.version} is out (this is ${VERSION}): ${android.url ?? ""}`);
+}
+
+/** The patch's own code: keep the agent android/manifest-android.json names (publish.mjs) when it is newer than
+ *  the one built into this app; the loader checks its signature here and again on every launch. */
+function* updateAgent(url: string): Generator<Request, void, Response> {
+    const loader = globalThis.ggxenLoader;
+    if (loader === undefined) return;
+    const a = JSON.parse((yield* get(url, false)).text ?? "").agent;
+    if (typeof a?.version !== "string") throw new Error("manifest names no agent");
+    if (!newer(a.version, loader.bakedVersion)) {
+        const old = loader.downloaded;
+        if (old !== null) {
+            loader.remove();
+            log.info(`Patch: removed the downloaded agent ${old}; the built-in ${loader.bakedVersion} runs from the next launch.`);
+        } else {
+            log.info(`Patch: up to date (${VERSION}).`);
+        }
+        return;
     }
+    if (loader.downloaded === a.version) {
+        log.info(loader.running.version === a.version ? `Patch: up to date (${VERSION}).`
+            : `Patch: agent ${a.version} is downloaded and starts on the next launch.`);
+        return;
+    }
+    if (loader.bad.includes(a.version)) {
+        log.warn(`Patch: agent ${a.version} failed to start on this phone before; staying on ${VERSION}.`);
+        return;
+    }
+    const why = loader.check(a);
+    if (why !== null) {
+        log.warn(`Patch: agent ${a.version} is out but can't run here: ${why}.`);
+        return;
+    }
+    const bytes = (yield* get(a.url, true)).bytes;
+    if (bytes === null) throw new Error(`${a.url}: empty response`);
+    loader.install(a, bytes);
+    log.info(`Patch: downloaded agent ${a.version} (running ${VERSION}); it starts on the next launch.`);
 }
 
 function* download(entry: any, path: string): Generator<Request, void, Response> {
@@ -123,11 +163,3 @@ function safeName(file: string): string {
     return file;
 }
 
-function newer(a: string, b: string): boolean {
-    const pa = a.split(".").map(Number), pb = b.split(".").map(Number);
-    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-        const d = (pa[i] ?? 0) - (pb[i] ?? 0);
-        if (d !== 0) return d > 0;
-    }
-    return false;
-}

@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "types": ["frida-gum"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "loader/**/*.ts"]
 }

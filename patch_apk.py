@@ -4,7 +4,8 @@
 
 Adds to lib/arm64-v8a/:
   libggxen.so          Frida Gadget (android/tools/frida-gadget-*-android-arm64.so)
-  libggxen.config.so   Gadget config: run the script next to it, no listening port
+  libggxen.config.so   Gadget config: run the loader next to it, no listening port
+  libggxen-loader.so   the loader: starts the agent below, or a newer signed one the agent downloaded
   libggxen-agent.so    the agent script (named .so so the installer extracts it beside the gadget)
 and adds libggxen.so to libmain.so's DT_NEEDED, so it loads before Unity starts.
 Sign the output afterwards with the project key (android/keys).
@@ -23,6 +24,7 @@ def main():
     ap.add_argument('src')
     ap.add_argument('dst')
     ap.add_argument('--agent', default=str(HERE / 'agent/dist/agent.js'))
+    ap.add_argument('--loader', default=str(HERE / 'agent/dist/loader.js'))
     ap.add_argument('--gadget', default=None)
     ap.add_argument('--dev', action='store_true', help='gadget listens for the PC instead of running the script')
     ap.add_argument('--runtime', default='v8', choices=['qjs', 'v8'])
@@ -47,11 +49,12 @@ def main():
         interaction = {'type': 'listen', 'address': '127.0.0.1', 'port': 27042,
                        'on_port_conflict': 'pick-next', 'on_load': 'resume'}
     else:
-        interaction = {'type': 'script', 'path': './libggxen-agent.so', 'on_change': 'ignore'}
+        interaction = {'type': 'script', 'path': './libggxen-loader.so', 'on_change': 'ignore'}
     config = json.dumps({'interaction': interaction, 'runtime': a.runtime, 'teardown': 'minimal'}).encode()
     extra = {
         LIB + 'libggxen.so': gadget.read_bytes(),
         LIB + 'libggxen.config.so': config,
+        LIB + 'libggxen-loader.so': Path(a.loader).read_bytes(),
         LIB + 'libggxen-agent.so': Path(a.agent).read_bytes(),
     }
 

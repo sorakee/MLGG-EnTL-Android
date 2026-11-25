@@ -18,12 +18,13 @@ data class Options(
     val shareScenes: Boolean = true,
     val sendUntranslatedUi: Boolean = true,
     val fitUiLabels: Boolean = true,
+    val updatePatch: Boolean = true,
 ) {
     fun toJson(game: Game): String {
         val r18 = includeR18 && game.isX
         val demo = demosaic && game.isX
         return """{"Text":{"FitUiLabels":$fitUiLabels},"Report":{"LogUntranslatedUi":true,"ShareScenes":$shareScenes,""" +
-            """"SendUntranslatedUi":$sendUntranslatedUi},"Update":{"IncludeR18":$r18},""" +
+            """"SendUntranslatedUi":$sendUntranslatedUi},"Update":{"IncludeR18":$r18,"UpdatePatch":$updatePatch},""" +
             """"QoL":{"Demosaic":$demo,"UninterruptedVoice":$uninterruptedVoice}}"""
     }
 }

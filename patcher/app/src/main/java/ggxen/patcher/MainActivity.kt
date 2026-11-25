@@ -180,6 +180,7 @@ class MainActivity : Activity() {
         option("demosaic", "Turn off the mosaic (X only; changes only what this phone draws)", false)
         option("uninterruptedVoice", "Let voice lines finish when you advance", false)
         option("fitUiLabels", "Shrink long English labels to fit", true)
+        option("updatePatch", "Download fixes to the patch itself (signed; no Rebuild needed)", true)
         option("shareScenes", "Share links to story scenes the translators lack (nothing about you)", true)
         option("sendUntranslatedUi", "Send untranslated menu text to the translators", true)
 
@@ -215,6 +216,7 @@ class MainActivity : Activity() {
         shareScenes = prefs.getBoolean("shareScenes", true),
         sendUntranslatedUi = prefs.getBoolean("sendUntranslatedUi", true),
         fitUiLabels = prefs.getBoolean("fitUiLabels", true),
+        updatePatch = prefs.getBoolean("updatePatch", true),
     )
 
     private fun start(game: Game, working: String) {
